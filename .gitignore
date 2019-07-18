@@ -82,7 +82,7 @@ typings/
 .DS_Store
 
 #IDE metadata
-**.idea/**
+.idea/
 
 /lib
 

@@ -3,7 +3,6 @@
  */
 
 
-
 "use strict";
 import "mocha";
 import {expect} from "chai"
@@ -14,19 +13,23 @@ import {ServerResponse} from "http";
 
 import {ObjectUtils, ServiceConfigs, ConsoleLogger, ILogger,Microservice} from "../index";
 import {HealthCheck} from "./factories/health_check";
+import {BunyanLogger} from "../bunyan_logger";
 
 
 process.env["TEST_PARAM"]= "env_var_value";
-process.env["NODE_ENV"]= "stage";
+process.env["APP_ENV"]= "stage";
 
 describe('main', () => {
-	let app:Microservice;
 	let logger:ILogger;
+
+	let app:Microservice;
 	let configs:ServiceConfigs;
 
 	const start_time = Date.now();
 	configs = require("./config/config");
-	logger = new ConsoleLogger();
+
+	// logger = new ConsoleLogger();
+	logger = new BunyanLogger(configs, "./log/sub/tests.log");
 
 	// create microservice app, no init yet
 	app = new Microservice(configs, logger);
@@ -162,8 +165,14 @@ describe('main', () => {
 
 		});
 
+		it("override from service provider", ()=>{
+			const secret_val = configs.get_secret_value("secret1");
+			expect(secret_val).be.equal("my_secret1_value");
+
+		});
 
 	});
+
 
 });
 

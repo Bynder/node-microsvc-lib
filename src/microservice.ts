@@ -1,6 +1,8 @@
 /**
  * Created by pedrosousabarreto@gmail.com on 15/Jan/2019.
  */
+
+
 "use strict";
 
 import * as http from "http";
@@ -15,7 +17,8 @@ import {DiContainer} from "./di_container";
 import {ServiceConfigs} from "./service_configs";
 import {IDiFactory, ILogger} from "./interfaces";
 import {AddressInfo} from "net";
-
+import Signals = NodeJS.Signals;
+import {ConsoleLogger} from "./console_logger";
 
 export class Microservice extends DiContainer {
 	private _express_app!: express.Application;
@@ -29,18 +32,12 @@ export class Microservice extends DiContainer {
 	constructor(configs: ServiceConfigs, logger?:ILogger) {
 		super(logger);
 
-		this._logger = (<any>logger).create_child({ class: "Microservice" });
+		if(!logger)
+			this._logger = new ConsoleLogger().create_child({class: "Microservice"});
+		else
+			this._logger = logger.create_child({class: "Microservice"});
 
 		console.time("MicroService - Start " + configs.instance_name);
-
-		this._configs = configs;
-		this.register_dependency("configs", this._configs);
-	}
-
-	public init(callback: (err?: Error) => void) {
-		// init configs
-		// _init_express_app
-		// _init_factories
 
 		//do something when app is closing
 		process.on('exit', () => {
@@ -48,18 +45,23 @@ export class Microservice extends DiContainer {
 		});
 
 		//catches ctrl+c event
-		process.on('SIGINT', ()=> {
-			this._logger.info("Microservice - SIGINT received - cleaning up...");
-			this.destroy((err:Error|undefined)=>{
-				process.exit();
-			});
-		});
+		process.on('SIGINT', this._handle_int_and_term_signals.bind(this));
+
+		//catches program termination event
+		process.on('SIGTERM', this._handle_int_and_term_signals.bind(this));
+
+		this._configs = configs;
+		this.register_dependency("configs", this._configs);
+	}
+
+	public init(callback: (err?: Error) => void) {
 
 		// init configs first
 		this._configs.init((err?: Error) => {
 			if (err) return callback(err);
 
-			this._run_express = this._configs.get_feature_flag_value("RUN_EXPRESS_APP");
+			const run_express_flag = this._configs.get_feature_flag_value("RUN_EXPRESS_APP");
+			this._run_express = run_express_flag == undefined ? true : run_express_flag;
 
 			Async.waterfall([
 				(done:Async.AsyncResultCallback<any>) => {
@@ -100,11 +102,11 @@ export class Microservice extends DiContainer {
 		this._http_server.on('listening', () => {
 			let addr:AddressInfo = this._http_server.address() as AddressInfo;
 			// let bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + JSON.stringify(addr);
-			this._logger.info("Microservice - listening on: %s %s:%n", addr.family, addr.address, addr.port);
-			this._logger.info("Microservice - PID: %d", process.pid);
+			this._logger.info(`Microservice - listening on: ${addr.family} ${addr.address}:${addr.port}`);
+			this._logger.info(`Microservice - PID: ${process.pid}`);
 
-			// hook health check
-			this._express_app.get('/', this._health_check_handler.bind(this));
+			// hook health check - implement a proper health check with a factory
+			// this._express_app.get('/', this._health_check_handler.bind(this));
 
 			// debug
 			this._express_app.use("*", (req: express.Request, res: express.Response, next: express.NextFunction)=>{
@@ -158,15 +160,15 @@ export class Microservice extends DiContainer {
 
 		Async.forEachLimit(factories, 1,
 			(factory_name, next) => {
-				this._logger.info("Microservice - destroying factory: %s", factory_name);
+				this._logger.info(`Microservice - destroying factory: ${factory_name}`);
 				mod = this.get(factory_name);
 				mod.destroy.call(mod, next);
 			},
 			(err?: any) => {
 				if (err)
-					this._logger.error(err, "Microservice - SIGINT cleanup error");
+					this._logger.error(err, "Microservice - destroy cleanup error");
 				else
-					this._logger.info("Microservice - SIGINT cleanup completed successfully, exiting...");
+					this._logger.info("Microservice - destroy cleanup completed successfully, exiting...");
 				callback(err);
 			}
 		);
@@ -193,10 +195,16 @@ export class Microservice extends DiContainer {
 
 	}
 
-	private _health_check_handler(req: express.Request, res: express.Response, next: express.NextFunction) {
-		// TODO add overrideable custom handler
-		res.send("ok");
+	private _handle_int_and_term_signals(signal: Signals): void {
+		this._logger.info(`Microservice - ${signal} received - cleaning up...`);
+		this.destroy((err: Error | undefined) => {
+			if(err)
+				return process.exit(90);
+
+			process.exit()
+		});
 	}
+
 }
 
 

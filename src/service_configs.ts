@@ -2,6 +2,7 @@
  * Created by pedrosousabarreto@gmail.com on 15/Jan/2019.
  */
 
+
 "use strict";
 
 /*
@@ -12,6 +13,10 @@ import * as uuid from "uuid";
 import {PARAM_TYPES, ParamType, ServiceFeatureFlag, ServiceParam, ServiceParams, ServiceSecret} from "./service_params";
 import {IConfigsProvider} from "./interfaces";
 import * as path from "path";
+import InstanceOf = Chai.InstanceOf;
+import {throws} from "assert";
+
+const CLASS_NAME="ServiceConfigs";
 
 export class ServiceConfigs {
 	private _conf_files_dir_path!:string;
@@ -115,16 +120,18 @@ export class ServiceConfigs {
 		this._instance_id = uuid.v4();
 		this._instance_name = this._app_full_name_version + "__" + this._instance_id;
 
+		this._log_start_values();
+
 		// load the param.js file
-		this._try_load_params_file();
+		this._load_default_params_file();
 
-		// check if overrides is enabled and an override file exists and if so, apply it
-		this._service_params.override_from_env_file(this._conf_files_dir_path, base_configs);
-
-		// always load the default params and feature flags from the params
+		// always load the default params, feature flags and secrets to the correspondent "_values"
 		this._load_default_params();
 		this._load_default_feature_flags();
 		this._load_default_secrets();
+
+		// check if a per APP_ENV file exists and execute its overrides
+		this._override_from_env_file();
 	}
 
 	// get everything it needs and prepare the object to be used
@@ -137,14 +144,20 @@ export class ServiceConfigs {
 			return callback();
 		}
 
-		const keys: string[] = Array.from(this._service_params_values.keys()).concat(
-			Array.from(this._service_feature_flags_values.keys()),
-			Array.from(this._service_secret_values.keys())
-		);
+		// const keys: string[] = Array.from(this._service_params_values.keys()).concat(
+		// 	Array.from(this._service_feature_flags_values.keys()),
+		// 	Array.from(this._service_secret_values.keys())
+		// );
+
+		const keys = this._service_params.all_keys();
 
 		// go to consul or whatever configuration service
 		this._configs_provider.init(keys, (err?: Error) => {
-			// TODO log
+			if(err){
+				console.error(err);
+				return callback(err);
+				// throw new Error("Error initialising ConfigProvider");
+			}
 
 			this._override_from_serviceprovider();
 
@@ -154,33 +167,61 @@ export class ServiceConfigs {
 	}
 
 	get_param_value(name: string): any {
-		return this._service_params_values.get(name) || null;
+		return this._service_params_values.get(name) !== undefined ? this._service_params_values.get(name):  null
 	}
 
-	get_feature_flag_value(name: string): boolean {
-		return this._service_feature_flags_values.get(name) || false;
+	get_feature_flag_value(name: string): boolean | undefined {
+		return this._service_feature_flags_values.get(name);
 	}
-
 
 	get_secret_value(name: string): string {
-		return this._service_secret_values.get(name) || null;
+		return this._service_secret_values.get(name) !== undefined ? this._service_secret_values.get(name):  null
 	}
 
-	// for now use: https://hub.docker.com/_/vault as the ref implementation
+	override_param_value(name:string, new_value:any){
+		if(!this._service_params.has(name))
+			throw new Error(`Non-existing param - name: ${name} - cannot be overwritten`);
+
+		this._service_params_values.set(name, new_value);
+		console.debug(`${CLASS_NAME} - param '${name}' overridden`);
+	};
+
+	override_feature_flag_value(name:string, new_value:boolean){
+		if(!this._service_params.has(name))
+			throw new Error(`Non-existing feature flag - name: ${name} - cannot be overwritten`);
+
+		this._service_feature_flags_values.set(name, new_value);
+		console.debug(`${CLASS_NAME} - feature flag '${name}' overridden`);
+	};
+
+	override_secret_value(name:string, new_value:string){
+		if(!this._service_params.has(name))
+			throw new Error(`Non-existing secret - name: ${name} - cannot be overwritten`);
+
+		this._service_secret_values.set(name, new_value);
+		console.debug(`${CLASS_NAME} - secret '${name}' overridden`);
+	};
 
 
-	private _try_load_params_file(){
+	private _load_default_params_file(){
 		// const caller_file = GetCallerFile();
 		// const caller_path = path.dirname(caller_file);
 		const filename = path.resolve(this._conf_files_dir_path, "params");
 
+		let params_obj;
 		try{
-			const params_obj = require(filename);
-			this._service_params = params_obj;
+			params_obj = require(filename);
 		}catch(e){
 			throw new Error(`params.js file not found - one is required in path ${this._conf_files_dir_path}`);
 		}
 
+		if(typeof(params_obj) != "object")
+			throw new Error("invalid params obj from params.js file");
+
+		if(!(params_obj instanceof ServiceParams))
+			throw new Error("invalid params obj from params.js file, not instance of ServiceParams");
+
+		this._service_params = params_obj;
 	}
 
 	private _load_default_params() {
@@ -200,6 +241,22 @@ export class ServiceConfigs {
 		this._service_params.get_all_secrets().forEach((secret: ServiceSecret) => {
 			this._service_secret_values.set(secret.name, secret.default_value);
 		});
+	}
+
+
+	private _override_from_env_file():void{
+		const filename = path.resolve(this._conf_files_dir_path, "overrides." + this._env);
+
+		try{
+			require(filename)(this);
+			console.info(`${CLASS_NAME} - env var overrides file loaded successfully from path: ${filename}`);
+		} catch(e){
+			if(e.code === "MODULE_NOT_FOUND")
+				console.warn(`${CLASS_NAME} - env var overrides file NOT FOUND in path: ${filename}`);
+			else{
+				console.error(e, `${CLASS_NAME} - error in env var overrides file in path: ${filename}`);
+			}
+		}
 	}
 
 	private _override_from_envvars(): void {
@@ -244,7 +301,7 @@ export class ServiceConfigs {
 			const val_str = this._configs_provider.get_value(secret.name);
 
 			if (val_str)
-				this._service_params_values.set(secret.name, this._convert_from_string(val_str, PARAM_TYPES.STRING));
+				this._service_secret_values.set(secret.name, this._convert_from_string(val_str, PARAM_TYPES.STRING));
 		});
 	}
 
@@ -284,6 +341,20 @@ export class ServiceConfigs {
 				return value;
 				break;
 		}
+	}
+
+	private _log_start_values(){
+		console.info(`${CLASS_NAME} - Loaded with:
+\tenv: ${this._env}
+\tdev_mode: ${this._dev_mode}
+\tenv: ${this._env}
+\tsolution name: ${this._solution_name}
+\tapp name: ${this._app_name}
+\tapp version: ${this._app_version}
+\tinstance id: ${this._instance_id}
+\tinstance name: ${this._instance_name}
+\tconfigs path: ${this._conf_files_dir_path}`
+		)
 	}
 
 }
