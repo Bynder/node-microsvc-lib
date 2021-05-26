@@ -5,8 +5,8 @@
 import * as express from "express";
 
 
-import {ILogger,IDiFactory } from "../../interfaces"
-import {ServiceConfigs} from "../../service_configs"
+import {ILogger,IDiFactory, ServiceConfigs } from "../../index"
+import {ConsoleLogger} from "../../console_logger";
 
 const my_path = "/_health_check";
 
@@ -24,29 +24,30 @@ export class HealthCheck implements IDiFactory {
 	constructor(configs: ServiceConfigs, express_app: express.Application, logger:ILogger) {
 		this._configs = configs;
 		this._express_app = express_app;
-		this._logger = logger;
+
+		if(!logger)
+			this._logger = new ConsoleLogger().create_child({class: "HealthCheck"});
+		else
+			this._logger = logger.create_child({class: "HealthCheck"});
 	}
 
-	init(callback: (err?: Error) => void) {
+	async init(): Promise<void> {
 		this._logger.info("%s initialising...", this.name);
 
-		this._inject_routes((err?:Error)=>{
-			if(err) {
-				this._logger.error(err, this.name+" Error initializing");
-				return callback(err);
-			}
-
+		await this._inject_routes().catch((err?:Error)=> {
+			this._logger.error(err, this.name + " Error initializing");
+			return Promise.reject(err);
+		}).then(()=>{
 			this._logger.info("%s initialised", this.name);
-			callback();
+			return Promise.resolve();
 		});
 	}
 
-	destroy(callback:()=>void){
+	async destroy(): Promise<void> {
 		this._logger.info("%s - destroying...", this.name);
-		callback();
 	}
 
-	private _inject_routes(callback: (err?: Error) => void) {
+	private async _inject_routes(): Promise<void> {
 		this._logger.info("%s initialising routes...", this.name);
 
 		let router = express.Router();
@@ -54,9 +55,6 @@ export class HealthCheck implements IDiFactory {
 		router.get(my_path, this._health_check_handler.bind(this));
 
 		this._express_app.use(this._configs.app_base_url, router);
-
-		// respond immediately - this is being called from some init() fn
-		callback(undefined)
 	}
 
 	private _health_check_handler(req: express.Request, res: express.Response, next: express.NextFunction) {

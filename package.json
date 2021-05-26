@@ -1,6 +1,6 @@
 {
   "name": "node-microsvc-lib",
-  "version": "1.0.1",
+  "version": "3.0.3",
   "description": "NodeJS microservice framework library",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,7 +33,11 @@
     "lines": 75,
     "statements": 75,
     "functions": 75,
-    "branches": 75
+    "branches": 50,
+    "exclude": [
+      "lib/tests",
+      "lib/config_providers"
+    ]
   },
   "files": [
     "lib/**/*"
@@ -43,30 +47,35 @@
     "url": "https://github.com/pedrosousabarreto/node-microsvc-lib.git"
   },
   "dependencies": {
-    "async": "^2.6.1",
-    "aws-sdk": "^2.428.0",
-    "express": "^4.16.4",
-    "lodash": "^4.17.11",
-    "request": "^2.88.0",
-    "underscore": "^1.9.1",
-    "uuid": "^3.3.2"
+    "async": "^3.2.0",
+    "aws-sdk": "^2.685.0",
+    "bunyan": "^1.8.12",
+    "bunyan-prettystream": "^0.1.3",
+    "express": "^4.17.1",
+    "lodash": "^4.17.15",
+    "printf": "^0.5.3",
+    "request": "^2.88.2",
+    "underscore": "^1.10.2",
+    "uuid": "^8.1.0"
   },
   "devDependencies": {
-    "@types/async": "^2.0.50",
+    "@types/async": "^3.2.3",
     "@types/aws-sdk": "^2.7.0",
-    "@types/chai": "^4.1.7",
-    "@types/express": "^4.16.0",
-    "@types/lodash": "^4.14.123",
-    "@types/mocha": "^5.2.5",
-    "@types/request": "^2.48.1",
-    "@types/underscore": "^1.8.9",
-    "@types/uuid": "^3.4.4",
+    "@types/bunyan": "^1.8.6",
+    "@types/bunyan-prettystream": "^0.1.31",
+    "@types/chai": "^4.2.11",
+    "@types/express": "^4.17.6",
+    "@types/lodash": "^4.14.153",
+    "@types/mocha": "^7.0.2",
+    "@types/request": "^2.48.5",
+    "@types/underscore": "^1.10.0",
+    "@types/uuid": "^8.0.0",
     "chai": "^4.2.0",
-    "coveralls": "^3.0.2",
-    "istanbul": "^0.4.5",
-    "mocha": "^5.2.0",
-    "nyc": "^13.3.0",
-    "ts-node-dev": "^1.0.0-pre.32",
-    "typescript": "^3.2.2"
+    "coveralls": "^3.1.0",
+    "mocha": "^7.2.0",
+    "nyc": "^15.0.1",
+    "snyk": "^1.330.2",
+    "ts-node-dev": "^1.0.0-pre.44",
+    "typescript": "^3.9.3"
   }
 }

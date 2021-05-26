@@ -36,31 +36,33 @@ export class HashicorpVaultProvider implements IConfigsProvider{
 	}
 
 
-	init(keys:string[], callback:(err?:Error)=>void):void{
-		this._fetch_all_from_vault(keys, callback);
+	async init(keys:string[]):Promise<void>{
+		return this._fetch_all_from_vault(keys);
 	}
 
 	get_value(key_name:string):string|null{
 		return this._kvs.get(key_name) || null;
 	}
 
-	private _fetch_all_from_vault(keys:string[], callback:(err?:Error)=>void){
-		request.get(this._vault_final_url, {json:true, auth: { bearer: this._vault_token } }, (error: any, response: Response, body: any)=>{
-			//console.log(body);
+	private async _fetch_all_from_vault(keys:string[]): Promise<void> {
+		return new Promise((resolve, reject)=> {
+			request.get(this._vault_final_url, {
+				json: true,
+				auth: {bearer: this._vault_token}
+			}, (error: any, response: Response, body: any) => {
+				//console.log(body);
+				// TODO handler error
+				if (response && response.statusCode == 200) {
+					keys.forEach((key_name: string) => {
+						const val = this._get_value_from_resp_body(key_name, body);
+						if (val)
+							this._kvs.set(key_name, val)
+					});
+				}
 
-			if(response && response.statusCode == 200){
-				keys.forEach((key_name:string)=>{
-					const val = this._get_value_from_resp_body(key_name, body);
-					if(val)
-						this._kvs.set(key_name, val)
-				});
-			}
-
-			callback()
+				resolve()
+			});
 		});
-
-
-
 	}
 
 

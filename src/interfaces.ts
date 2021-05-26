@@ -3,6 +3,15 @@
  */
 "use strict";
 
+export enum LogLevels {
+	TRACE =  	"TRACE",
+	DEBUG = 	"DEBUG",
+	INFO = 		"INFO",
+	WARN =		"WARN",
+	ERROR = 	"ERROR",
+	FATAL = 	"FATAL",
+}
+
 export interface ILogger {
 	debug(message?: any, ...optionalParams: any[]): void;
 	info(message?: any, ...optionalParams: any[]): void;
@@ -15,12 +24,12 @@ export interface ILogger {
 
 export interface IDiFactory {
 	name: string;
-	init(callback: (err?: Error) => void):void;
-	destroy(callback:(err?:Error)=>void):void;
+	init():Promise<void>;
+	destroy():Promise<void>;
 }
 
 export interface IConfigsProvider{
 	readonly solution_name:string;
-	init(keys:string[], callback:(err?:Error)=>void):void;
+	init(keys:string[]):Promise<void>;
 	get_value(key_name:string):string|null;
 }
