@@ -43,7 +43,7 @@
     "url": "https://github.com/pedrosousabarreto/node-microsvc-lib.git"
   },
   "dependencies": {
-    "async": "^2.6.1",
+    "async": "^2.6.3",
     "aws-sdk": "^2.428.0",
     "express": "^4.16.4",
     "lodash": "^4.17.11",
